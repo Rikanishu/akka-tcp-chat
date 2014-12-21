@@ -38,7 +38,6 @@ class Client(interact: ActorRef, remote: InetSocketAddress) extends Actor {
 
   def receive = {
     case cmd @ DoConnect() =>
-      println(remote)
       IO(Tcp) ! Tcp.Connect(remote, timeout = Some(connectionTimeout))
       context.become(waitConnectionResult(cmd))
   }
@@ -49,10 +48,8 @@ class Client(interact: ActorRef, remote: InetSocketAddress) extends Actor {
         context.stop(self)
 
       case Tcp.Connected(_, _)=>
-        println("OKAY!")
         val connection = sender
         connection ! Tcp.Register(self)
-        println("Send to INTERACT")
         interact ! CommandSuccess(cmd)
         context.become(waitClientInit(connection))
   }

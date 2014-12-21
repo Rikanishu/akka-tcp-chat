@@ -16,7 +16,7 @@ class UserInteract extends Actor
   client ! DoConnect()
 
   def receive = {
-    
+
     case CommandSuccess(_) =>
       println("Enter your name:")
       context.become({
