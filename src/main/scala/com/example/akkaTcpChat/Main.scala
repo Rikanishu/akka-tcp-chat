@@ -1,11 +1,9 @@
 package com.example.akkaTcpChat
 
 
-import akka.actor.{ActorRef, ActorSystem}
-import akka.pattern.ask
+import akka.actor.{Props, ActorRef, ActorSystem}
 import java.net.InetSocketAddress
-import akka.util.Timeout
-import scala.concurrent._
+import com.example.akkaTcpChat.client.{InputUserMessage, UserInteract}
 
 class DisplayException(message: String = null, cause: Throwable = null) extends RuntimeException(message, cause)
 
@@ -19,7 +17,7 @@ object Main extends App {
 
     try {
       if (args.length < 1) {
-        throw new Exception("Run option is not specified")
+        exit("Run option is not specified")
       }
 
       println("Started as " + args(0))
@@ -28,18 +26,25 @@ object Main extends App {
         case "server" => runServer()
         case "client" => runClient()
         case _ =>
-          throw new Exception("Unknown run option")
+          exit("Unknown run option")
       }
     } catch {
       case _ : InterruptedException =>
-        println("We got an interrupted exception")
-        sys.exit(0)
+        exit("We got an interrupted exception")
       case e : DisplayException =>
-        println(e.getMessage)
-        sys.exit(0)
+        exit(e.getMessage)
     }
 
 	}
+
+  def exit(msg: String, code: Int) {
+    println(msg)
+    sys.exit(code)
+  }
+
+  def exit(msg: String) {
+    exit(msg, 1)
+  }
 
   /**
    * Server role
@@ -56,37 +61,10 @@ object Main extends App {
   def runClient() {
     val actorSystem = createActorSystem()
     implicit def system: ActorSystem = actorSystem
-    val clientActor: ActorRef = actorSystem.actorOf(Client.props(addr), "client")
-    try {
-      import scala.concurrent.duration._
-      val timeout = new Timeout(30 seconds)
-      val future = clientActor.ask(DoConnect())(timeout.duration)
-      val result = Await.result(future, timeout.duration).asInstanceOf[ConnectedResult]
-      println(result)
-    } catch {
-      case _ : TimeoutException =>
-        throw new DisplayException("Connection timed out")
+    val ui = actorSystem.actorOf(Props[UserInteract], "ui")
+    while (true) {
+      ui ! InputUserMessage(readLine())
     }
-
-    def readName() {
-      while (true) {
-        println("Enter your name:")
-        val name = readLine()
-        if (name != null && name.length > 1) {
-          clientActor ! UserName(name.take(32).mkString)
-          return
-        }
-      }
-    }
-
-    def readInput() {
-      while (true) {
-        clientActor ! UserInput(readLine())
-      }
-    }
-
-    readName()
-    readInput()
   }
 
   protected def createActorSystem() = {

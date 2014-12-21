@@ -3,93 +3,106 @@ package com.example.akkaTcpChat
 import java.net.InetSocketAddress
 import akka.actor.{Actor, Props, ActorRef}
 import akka.io.{IO, Tcp}
-import akka.io.Tcp._
 import akka.util.ByteString
-import akka.io.Tcp.Connected
-import akka.io.Tcp.Received
-import akka.io.Tcp.Register
-import akka.io.Tcp.Connect
-import akka.io.Tcp.CommandFailed
 import akka.event.Logging
 import scala.util.{Failure, Success}
 
-/* Client Actor Request */
+/* Client Actor Inputs */
 case class DoConnect()
 case class UserInput(msg: String)
 case class UserName(name: String)
-case class CloseConnection()
+case class Disconnect()
 
-/* Client Actor Response */
-case class ConnectedResult(success: Boolean)
+/* Client Actor Outputs */
+case class CommandSuccess(cmd: Any)
+case class CommandFailed(cmd: Any, reason: String)
+case class OtherUserMessage(name: String, msg: String)
+case class ConnectionClosed(why: String)
 
 object Client {
 
-  def props(remote: InetSocketAddress): Props = {
-    Props(new Client(remote))
+  def props(interact: ActorRef, remote: InetSocketAddress): Props = {
+    Props(new Client(interact, remote))
   }
 
 }
 
-class Client(remote: InetSocketAddress) extends Actor {
+class Client(interact: ActorRef, remote: InetSocketAddress) extends Actor {
 
   import context.system
+  import scala.concurrent.duration._
 
   val log = Logging(context.system, this)
+  val connectionTimeout = 30.seconds
+
 
   def receive = {
-    case DoConnect() =>
-      IO(Tcp) ! Connect(remote)
-      context.become(waitConnectionResult(sender))
+    case cmd @ DoConnect() =>
+      println(remote)
+      IO(Tcp) ! Tcp.Connect(remote, timeout = Some(connectionTimeout))
+      context.become(waitConnectionResult(cmd))
   }
 
-  def waitConnectionResult(depend: ActorRef): Actor.Receive = {
-      case CommandFailed(_: Connect) =>
-        depend ! ConnectedResult(success = false)
+  def waitConnectionResult(cmd: DoConnect): Actor.Receive = {
+      case Tcp.CommandFailed(_: Tcp.Connect) =>
+        interact ! CommandFailed(cmd, "Connect command failed")
         context.stop(self)
 
-      case Connected(_, _) =>
+      case Tcp.Connected(_, _)=>
+        println("OKAY!")
         val connection = sender
-        connection ! Register(self)
-        depend ! ConnectedResult(success = true)
+        connection ! Tcp.Register(self)
+        println("Send to INTERACT")
+        interact ! CommandSuccess(cmd)
         context.become(waitClientInit(connection))
   }
 
   def waitClientInit(connection: ActorRef): Actor.Receive = {
-      case UserName(name) =>
+      case cmd @ UserName(name) =>
         val req = new Common.Request(Common.CLIENT_INIT)
         req("name") = name
         req.serializeAsByteString match {
           case Success(b) =>
-            connection ! Write(b)
+            connection ! Tcp.Write(b)
+            interact ! CommandSuccess(cmd)
             context.become(chatLoop(connection))
           case Failure(e) =>
-            throw e
+            interact ! CommandFailed(cmd, e.getMessage)
         }
+
+      case _ : Tcp.ConnectionClosed =>
+        log.debug("Connection closed")
+        interact ! ConnectionClosed("Closed by TCP")
+        context.stop(self)
+
   }
 
   def chatLoop(connection: ActorRef): Actor.Receive = {
-      case UserInput(msg) =>
+      case cmd @ UserInput(msg) =>
         val req = new Common.Request(Common.CLIENT_MESSAGE)
         req("msg") = msg
         req.serializeAsByteString match {
           case Success(b) =>
-            connection ! Write(b)
+            connection ! Tcp.Write(b)
+            interact ! CommandSuccess(cmd)
           case Failure(e) =>
-            throw e
+            interact ! CommandFailed(cmd, e.getMessage)
         }
 
-      case CommandFailed(w: Write) =>
+      case Disconnect =>
+        log.debug("Disconnecting...")
+        connection ! Tcp.Close
+        context.stop(self)
+
+      case Tcp.CommandFailed(w: Tcp.Write) =>
         log.debug("Write failed")
 
-      case Received(data) =>
+      case Tcp.Received(data) =>
         handleReceivedData(data, connection)
 
-      case CloseConnection =>
-        log.debug("Close connection")
-        connection ! Close
-
-      case _ : ConnectionClosed =>
+      case _ : Tcp.ConnectionClosed =>
         log.debug("Connection closed")
+        interact ! ConnectionClosed("Closed by TCP")
         context.stop(self)
   }
 
@@ -100,7 +113,7 @@ class Client(remote: InetSocketAddress) extends Actor {
           case Common.OTHER_CLIENT_MESSAGE =>
             val name = req("name").asInstanceOf[String]
             val message = req("msg").asInstanceOf[String]
-            println(name + ": " + message)
+            interact ! OtherUserMessage(name, message)
         }
       case Failure(e) =>
         throw e
