@@ -16,15 +16,19 @@ class UserInteract extends Actor
   client ! DoConnect()
 
   def receive = {
+    
     case CommandSuccess(_) =>
       println("Enter your name:")
       context.become({
+
         case InputUserMessage(name) =>
           if (name != null && name.length > 1) {
             client ! UserName(name.take(32).mkString)
             context.become({
+
               case CommandSuccess(_) =>
                 context.become({
+
                   case OtherUserMessage(otherUserName, otherUserMessage) =>
                     println(otherUserName + ": " + otherUserMessage)
 
