@@ -6,6 +6,16 @@ import akka.util.ByteString
 import com.example.akkaTcpChat.Common
 import scala.util.{Failure, Success}
 
+object Peer {
+
+  case class PeerMessage(name: String, msg: String)
+
+  def props(clientId: String, connection: ActorRef): Props = {
+    Props(new Peer(clientId, connection))
+  }
+
+}
+
 class Peer(clientId: String,
            connection: ActorRef,
            var clientName: String = "Unknown") extends Actor {
@@ -43,16 +53,6 @@ class Peer(clientId: String,
       case Failure(e) =>
         throw e
     }
-  }
-
-}
-
-object Peer {
-
-  case class PeerMessage(name: String, msg: String)
-
-  def props(clientId: String, connection: ActorRef): Props = {
-    Props(new Peer(clientId, connection))
   }
 
 }

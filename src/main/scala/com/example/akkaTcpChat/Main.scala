@@ -1,11 +1,8 @@
 package com.example.akkaTcpChat
 
-
-import akka.actor.{Props, ActorRef, ActorSystem}
+import akka.actor.{Props, ActorSystem}
 import java.net.InetSocketAddress
 import com.example.akkaTcpChat.client.{InputUserMessage, UserInteract}
-
-class DisplayException(message: String = null, cause: Throwable = null) extends RuntimeException(message, cause)
 
 object Main extends App {
 
@@ -61,9 +58,10 @@ object Main extends App {
   def runClient() {
     val actorSystem = createActorSystem()
     implicit def system: ActorSystem = actorSystem
-    val ui = actorSystem.actorOf(Props[UserInteract], "ui")
+
+    val userInteract = actorSystem.actorOf(Props[UserInteract], "user-interact")
     while (true) {
-      ui ! InputUserMessage(readLine())
+      userInteract ! InputUserMessage(readLine())
     }
   }
 
@@ -72,3 +70,5 @@ object Main extends App {
   }
 
 }
+
+class DisplayException(message: String = null, cause: Throwable = null) extends RuntimeException(message, cause)

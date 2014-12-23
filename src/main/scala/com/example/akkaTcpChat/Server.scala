@@ -2,13 +2,8 @@ package com.example.akkaTcpChat
 
 import akka.actor.{ Props, Actor }
 import akka.io.{ IO, Tcp }
-import akka.io.Tcp._
 import java.net.InetSocketAddress
-import akka.io.Tcp.Connected
-import akka.io.Tcp.CommandFailed
-import akka.io.Tcp.Bind
-import akka.io.Tcp.Bound
-import com.example.akkaTcpChat.handler.{Hub, Peer}
+import com.example.akkaTcpChat.handler.Hub
 import akka.event.Logging
 
 object Server {
@@ -25,18 +20,18 @@ class Server(host: InetSocketAddress) extends Actor {
 
   val log = Logging(context.system, this)
 
-  IO(Tcp) ! Bind(self, host)
+  IO(Tcp) ! Tcp.Bind(self, host)
   val hub = context.actorOf(Props[Hub])
 
   def receive  = {
-    case b @ Bound(localAddress) =>
+    case b @ Tcp.Bound(localAddress) =>
       log.debug("Spawned " + localAddress.toString)
 
-    case CommandFailed(_:Bind) =>
+    case CommandFailed(_ : Tcp.Bind) =>
       println("Command failed. Going to stop server.")
       context stop self
 
-    case c @ Connected(remote, local) =>
+    case c @ Tcp.Connected(remote, local) =>
       log.debug("Connected " + remote.toString)
       hub ! Hub.Register(remote.toString, sender)
   }
