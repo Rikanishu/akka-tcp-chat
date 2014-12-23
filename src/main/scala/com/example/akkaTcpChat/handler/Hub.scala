@@ -31,7 +31,9 @@ class Hub extends Actor {
 }
 
 object Hub {
+
   case class Register(remote: String, connection: ActorRef)
   case class Broadcast(senderId: String, name: String, message: String)
   case class Unregister(senderId: String)
+
 }

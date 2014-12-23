@@ -5,8 +5,7 @@ import com.example.akkaTcpChat._
 
 case class InputUserMessage(msg: String)
 
-class UserInteract extends Actor
-{
+class UserInteract extends Actor {
 
   import context.system
   import scala.concurrent.duration._

@@ -37,70 +37,70 @@ class Client(interact: ActorRef, remote: InetSocketAddress) extends Actor {
 
 
   def receive = {
-    case cmd @ DoConnect() =>
+    case cmd@DoConnect() =>
       IO(Tcp) ! Tcp.Connect(remote, timeout = Some(connectionTimeout))
       context.become(waitConnectionResult(cmd))
   }
 
   def waitConnectionResult(cmd: DoConnect): Actor.Receive = {
-      case Tcp.CommandFailed(_: Tcp.Connect) =>
-        interact ! CommandFailed(cmd, "Connect command failed")
-        context.stop(self)
+    case Tcp.CommandFailed(_: Tcp.Connect) =>
+      interact ! CommandFailed(cmd, "Connect command failed")
+      context.stop(self)
 
-      case Tcp.Connected(_, _)=>
-        val connection = sender
-        connection ! Tcp.Register(self)
-        interact ! CommandSuccess(cmd)
-        context.become(waitClientInit(connection))
+    case Tcp.Connected(_, _) =>
+      val connection = sender
+      connection ! Tcp.Register(self)
+      interact ! CommandSuccess(cmd)
+      context.become(waitClientInit(connection))
   }
 
   def waitClientInit(connection: ActorRef): Actor.Receive = {
-      case cmd @ UserName(name) =>
-        val req = new Common.Request(Common.CLIENT_INIT)
-        req("name") = name
-        req.serializeAsByteString match {
-          case Success(b) =>
-            connection ! Tcp.Write(b)
-            interact ! CommandSuccess(cmd)
-            context.become(chatLoop(connection))
-          case Failure(e) =>
-            interact ! CommandFailed(cmd, e.getMessage)
-        }
+    case cmd@UserName(name) =>
+      val req = new Common.Request(Common.CLIENT_INIT)
+      req("name") = name
+      req.serializeAsByteString match {
+        case Success(b) =>
+          connection ! Tcp.Write(b)
+          interact ! CommandSuccess(cmd)
+          context.become(chatLoop(connection))
+        case Failure(e) =>
+          interact ! CommandFailed(cmd, e.getMessage)
+      }
 
-      case _ : Tcp.ConnectionClosed =>
-        log.debug("Connection closed")
-        interact ! ConnectionClosed("Closed by TCP")
-        context.stop(self)
+    case _: Tcp.ConnectionClosed =>
+      log.debug("Connection closed")
+      interact ! ConnectionClosed("Closed by TCP")
+      context.stop(self)
 
   }
 
   def chatLoop(connection: ActorRef): Actor.Receive = {
-      case cmd @ UserInput(msg) =>
-        val req = new Common.Request(Common.CLIENT_MESSAGE)
-        req("msg") = msg
-        req.serializeAsByteString match {
-          case Success(b) =>
-            connection ! Tcp.Write(b)
-            interact ! CommandSuccess(cmd)
-          case Failure(e) =>
-            interact ! CommandFailed(cmd, e.getMessage)
-        }
+    case cmd @ UserInput(msg) =>
+      val req = new Common.Request(Common.CLIENT_MESSAGE)
+      req("msg") = msg
+      req.serializeAsByteString match {
+        case Success(b) =>
+          connection ! Tcp.Write(b)
+          interact ! CommandSuccess(cmd)
+        case Failure(e) =>
+          interact ! CommandFailed(cmd, e.getMessage)
+      }
 
-      case Disconnect =>
-        log.debug("Disconnecting...")
-        connection ! Tcp.Close
-        context.stop(self)
+    case Disconnect =>
+      log.debug("Disconnecting...")
+      connection ! Tcp.Close
+      context.stop(self)
 
-      case Tcp.CommandFailed(w: Tcp.Write) =>
-        log.debug("Write failed")
+    case Tcp.CommandFailed(w: Tcp.Write) =>
+      log.debug("Write failed")
 
-      case Tcp.Received(data) =>
-        handleReceivedData(data, connection)
+    case Tcp.Received(data) =>
+      handleReceivedData(data, connection)
 
-      case _ : Tcp.ConnectionClosed =>
-        log.debug("Connection closed")
-        interact ! ConnectionClosed("Closed by TCP")
-        context.stop(self)
+    case _: Tcp.ConnectionClosed =>
+      log.debug("Connection closed")
+      interact ! ConnectionClosed("Closed by TCP")
+      context.stop(self)
   }
 
   def handleReceivedData(data: ByteString, connection: ActorRef) {

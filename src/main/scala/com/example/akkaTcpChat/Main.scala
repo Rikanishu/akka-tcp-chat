@@ -10,7 +10,7 @@ object Main extends App {
     new InetSocketAddress("localhost", 8842)
   }
 
-	override def main(args: Array[String]) = {
+  override def main(args: Array[String]) = {
 
     try {
       if (args.length < 1) {
@@ -26,13 +26,13 @@ object Main extends App {
           exit("Unknown run option")
       }
     } catch {
-      case _ : InterruptedException =>
+      case _: InterruptedException =>
         exit("We got an interrupted exception")
-      case e : DisplayException =>
+      case e: DisplayException =>
         exit(e.getMessage)
     }
 
-	}
+  }
 
   def exit(msg: String, code: Int) {
     println(msg)
