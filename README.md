@@ -10,8 +10,5 @@ Uses Akka v2.2.3.
 
 ```
 example@local:~/akka-tcp-chat$ sbt "run server"
-```
-
-```
 example@local:~/akka-tcp-chat$ sbt "run client"
 ```
